@@ -41,7 +41,7 @@ from redis.cluster import (
     get_node_name,
     parse_cluster_slots,
 )
-from redis.commands import READ_COMMANDS, AsyncRedisClusterCommands
+from redis.commands import READ_COMMANDS, AsyncRedisClusterCommands, AsyncRedisModuleCommands
 from redis.crc import REDIS_CLUSTER_HASH_SLOTS, key_slot
 from redis.credentials import CredentialProvider
 from redis.exceptions import (
@@ -83,7 +83,7 @@ class ClusterParser(DefaultParser):
     )
 
 
-class RedisCluster(AbstractRedis, AbstractRedisCluster, AsyncRedisClusterCommands):
+class RedisCluster(AbstractRedis, AbstractRedisCluster, AsyncRedisClusterCommands, AsyncRedisModuleCommands):
     """
     Create a new RedisCluster client.
 
@@ -1343,7 +1343,7 @@ class NodesManager:
         return host, port
 
 
-class ClusterPipeline(AbstractRedis, AbstractRedisCluster, AsyncRedisClusterCommands):
+class ClusterPipeline(AbstractRedis, AbstractRedisCluster, AsyncRedisClusterCommands, AsyncRedisModuleCommands):
     """
     Create a new ClusterPipeline object.
 
@@ -1392,6 +1392,13 @@ class ClusterPipeline(AbstractRedis, AbstractRedisCluster, AsyncRedisClusterComm
             await self._client.initialize()
         self._command_stack = []
         return self
+
+    def set_response_callback(self, command: str, callback: Callable[..., Any]) -> None:
+        """Set a custom response callback."""
+        self._client.set_response_callback(command, callback)
+
+        for node in self._client.nodes_manager.nodes_cache.values():
+            node.response_callbacks[command] = callback
 
     async def __aenter__(self) -> "ClusterPipeline":
         return await self.initialize()
